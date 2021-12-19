@@ -296,7 +296,7 @@ INSERT INTO StudentsLectures(StudentId, LectureId, NumberOfPaidInstallments, Pai
 (3, 7, 1, 500),
 (3, 8, 1, 500),
 (3, 9, 2, 1000),
-(3, 10,2, 1000),
+(3, 10, 2, 1000),
 (4, 2, 0, 0),
 (5, 1, 0, 0),
 (6, 1, 2, 1000),
@@ -350,3 +350,154 @@ INSERT INTO StudentsLectures(StudentId, LectureId, NumberOfPaidInstallments, Pai
 (30, 80, 1, 500)
 
 SELECT * FROM StudentsLectures
+
+
+/*raspored odrzavanja tecajeva u skoli za odredeni vremenski period*/
+SELECT [Language], [Level], StartOfLecture
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+WHERE StartOfLecture BETWEEN '2021-10-01'AND '2021-10-10'
+ORDER BY CourseLanguageId
+
+/*raspored odrzavanja tecaja za pojedinu grupu polaznika za odredeni vremenski period*/
+SELECT [Language], [Level], StartOfLecture
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+WHERE [Language] = 'engleski' AND [Level] = 'A1' AND StartOfLecture BETWEEN '2021-10-01'AND '2021-10-10'
+
+/*raspored rada pojedinog nastavnika za odredeni vremenski period*/
+SELECT [Language], [Level], StartOfLecture
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Teachers t ON tc.TeacherId = t.Id
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+WHERE t.Id = 1 AND StartOfLecture BETWEEN '2021-10-01'AND '2021-10-15'
+
+/*izvjestaj za pojedinog polaznika za odredeni vremenski period, koji ukljucuje podatke o tecajevima stranih jezika koje slusa, 
+stupnjevima koje je zavrsio, nastavnicima koji mu predaju, prisutnosti na nastavi te ratama koje je uplatio*/
+SELECT [Language], [Level], t.FirstName, t.LastName, StartOfLecture, EndOfLecture, LectureId, NumberOfPaidInstallments, PaidAmountSoFar
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Teachers t ON tc.TeacherId = t.Id
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+JOIN StudentsLectures sl ON le.Id = sl.LectureId
+JOIN Students s ON sl.StudentId = s.Id
+WHERE s.Id = 9 AND StartOfLecture BETWEEN '2021-10-01'AND '2021-10-31'
+
+/*izvjestaj o brojnosti polaznika i posjecenosti nastave na pojedinom tecaju u odreðenom vremenskom periodu*/
+SELECT [Language], [Level], COUNT(sl.StudentId) AS 'Total number of students'
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Teachers t ON tc.TeacherId = t.Id
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+JOIN StudentsLectures sl ON le.Id = sl.LectureId
+WHERE StartOfLecture BETWEEN '2021-10-01'AND '2021-10-10'
+GROUP BY [Language], [Level]
+
+/*pregled brojnosti polaznika na pojedinim tecajevima po starosnim skupinama*/
+SELECT [Language], [Level],
+	(SELECT CASE 
+		WHEN DATEDIFF(YEAR, s.DateOfBirth, CAST(GETDATE() AS date)) <= 17 THEN N'uèenik'
+		WHEN DATEDIFF(YEAR, s.DateOfBirth, CAST(GETDATE() AS date)) > 17 AND DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) <= 27 THEN 'student'
+		WHEN DATEDIFF(YEAR, s.DateOfBirth, CAST(GETDATE() AS date)) > 27 AND DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) <= 66 THEN 'radnik'
+		WHEN DATEDIFF(YEAR, s.DateOfBirth, CAST(GETDATE() AS date)) > 66 THEN 'penzioner'
+	END) AS [Status], COUNT(*) AS 'Total number of students'
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+JOIN StudentsLectures sl ON le.Id = sl.LectureId
+JOIN Students s ON sl.StudentId = s.Id
+GROUP BY [Language], [Level], s.DateOfBirth
+ORDER BY [Language]
+
+/*ispis imena najstarijeg polaznika koji pohaða vise od dva jezika*/
+SELECT TOP 1 CONCAT(s.FirstName , ' ' , s.LastName) AS 'Student', s.DateOfBirth
+FROM StudentsLectures sl
+JOIN Students s ON s.Id = sl.StudentId
+GROUP BY s.Id, CONCAT(s.FirstName , ' ' , s.LastName), s.DateOfBirth
+HAVING COUNT(*) >= 2
+ORDER BY s.DateOfBirth ASC
+
+/*sortiranje tecajeva po broju polaznika koji imaju manje od 20 godina*/
+SELECT [Language], [Level]
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+JOIN StudentsLectures sl ON le.Id = sl.LectureId
+JOIN Students s ON sl.StudentId = s.Id
+WHERE DATEDIFF(YEAR, s.DateOfBirth, CAST(GETDATE() AS date)) < 20
+GROUP BY [Language], [Level]
+ORDER BY COUNT(s.Id) ASC
+
+/*ispis statusa polaznika:
+ucenik(za osobu mladu od 17 godina)
+student(za osobu stariju od 18, a mladu od 27)
+radnik(za osobu stariju od 28, a mladu od 66)
+penzioner(za osobu stariju od 67)*/
+SELECT Id, FirstName, LastName, DateOfBirth,
+	(SELECT CASE 
+		WHEN DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) <= 17 THEN N'uèenik'
+		WHEN DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) > 17 AND DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) <= 27 THEN 'student'
+		WHEN DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) > 27 AND DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) <= 66 THEN 'radnik'
+		WHEN DATEDIFF(YEAR, DateOfBirth, CAST(GETDATE() AS date)) > 66 THEN 'penzioner'
+	END) AS [Status]
+FROM Students
+
+/*ispis svih polaznika koji polazu bilo koji od tecajeva za odreden jezik*/
+SELECT DISTINCT s.FirstName, s.LastName
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+JOIN StudentsLectures sl ON le.Id = sl.LectureId
+JOIN Students s ON sl.StudentId = s.Id
+WHERE [Language] = 'engleski'
+
+/*ispis svih polaznika koji su bili u odredenoj ucionici*/
+SELECT DISTINCT s.FirstName, s.LastName
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+JOIN StudentsLectures sl ON le.Id = sl.LectureId
+JOIN Students s ON sl.StudentId = s.Id
+JOIN Classrooms cl ON c.ClassroomId = cl.Id
+WHERE ClassroomNumber = 103
+
+/*ispis svih polaznika i nastavnika za zadanom jeziku*/
+SELECT DISTINCT s.FirstName, s.LastName
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+JOIN StudentsLectures sl ON le.Id = sl.LectureId
+JOIN Students s ON sl.StudentId = s.Id
+WHERE [Language] = 'engleski'
+UNION
+SELECT DISTINCT FirstName, LastName
+FROM Courses c
+JOIN Languages la ON c.CourseLanguageId = la.Id
+JOIN ProficiencyLevels p ON c.ProficiencyLevelId = p.Id
+JOIN TeachersCourses tc ON c.Id = tc.CourseId
+JOIN Teachers t ON tc.TeacherId = t.Id
+JOIN Lectures le ON tc.Id = le.TeachersCoursesId
+WHERE [Language] = 'engleski'
